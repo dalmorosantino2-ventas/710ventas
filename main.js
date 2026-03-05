@@ -56,11 +56,11 @@ client.on(Events.InteractionCreate, async interaction => {
             const stock = fs.readFileSync(CONFIG.archivoCuentas, 'utf8').split('\n').filter(l => l.trim()).length;
             const embed = new EmbedBuilder()
                 .setTitle(`${CONFIG.productoNombre} | Producto`)
-                .setDescription('🇪🇸 - Cuenta de Steam FULL ACCES +60 Días.\n\nFull Access\n(MAIL:CONTRASEÑA).')
+                .setDescription('🇪🇸 **- Cuenta de Steam FULL ACCES +60 Días.**\n\n> Full Access\n> (MAIL:CONTRASEÑA).')
                 .addFields(
-                    { name: '💸 | Precio: ARS', value: `$${CONFIG.precioARS.toFixed(2)}`, inline: true },
-                    { name: '💰 | Price: USD', value: `$${CONFIG.precioUSD.toFixed(2)}`, inline: true },
-                    { name: '📦 | Stock:', value: `${stock}`, inline: true }
+                    { name: '💸 | **Precio: ARS**', value: `$${CONFIG.precioARS.toFixed(2)}`, inline: true },
+                    { name: '💰 | **Price: USD**', value: `$${CONFIG.precioUSD.toFixed(2)}`, inline: true },
+                    { name: '📦 | **Stock:**', value: `${stock}`, inline: true }
                 )
                 .setImage(CONFIG.imagenProducto)
                 .setColor('#00ff77');
@@ -218,7 +218,7 @@ async function procesarEntrega(userId, interaction) {
     const canalLogs = await guild.channels.fetch(CONFIG.canalLogsVentas);
     const embedLog = new EmbedBuilder()
         .setTitle('Saytus | Shop | Compra Aprobada')
-        .setDescription(`**Nueva venta realizada 💳**\n\n👤 **| Comprador:**\n${member} (${member.user.username})\n\n🛒 **| Producto(s):**\n\`${CONFIG.productoNombre} (x${datos.cantidad})\`\n\n💸 **| Monto:**\nARS$${(datos.cantidad * CONFIG.precioARS).toFixed(2)}\n\n📅 **| Fecha:**\n${new Date().toLocaleString('es-AR')}`)
+        .setDescription(`**Nueva venta realizada 💳**\n\n👤 **| Comprador:**\n${member} (${member.user.username})\n\n🛒 **| Producto(s):**\n\`${CONFIG.productoNombre} (x${datos.cantidad})\`\n\n💸 **| Monto:**\n> ARS$${(datos.cantidad * CONFIG.precioARS).toFixed(2)}\n\n📅 **| Fecha:**\n${new Date().toLocaleString('es-AR')}`)
         .setImage(CONFIG.imagenVentaCompletada)
         .setColor('#ff9900')
         .setFooter({ text: 'Saytus | Shop - Sistema de Ventas Automático' });
