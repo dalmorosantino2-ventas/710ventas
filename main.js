@@ -179,17 +179,25 @@ async function procesarEntrega(userId, interaction) {
     const guild = interaction.guild;
     const member = await guild.members.fetch(userId);
 
-    let cuentas = fs.readFileSync(CONFIG.archivoCuentas, 'utf8').split('\n').filter(l => l.trim());
-    if (cuentas.length < datos.cantidad) return interaction.reply('❌ Error: Sin stock suficiente.');
+    // 1. Leer archivo y limpiar líneas vacías para evitar errores de conteo
+    let contenido = fs.readFileSync(CONFIG.archivoCuentas, 'utf8');
+    let cuentas = contenido.split('\n').map(linea => linea.trim()).filter(linea => linea !== "");
+
+    if (cuentas.length < datos.cantidad) {
+        return interaction.reply({ content: '❌ Error: No hay suficiente stock real en el archivo.', ephemeral: true });
+    }
     
-    // Extraer cantidad solicitada
+    // 2. Extraer exactamente la cantidad comprada
     const entregadas = cuentas.splice(0, datos.cantidad);
+    
+    // 3. Guardar el archivo actualizado de inmediato
     fs.writeFileSync(CONFIG.archivoCuentas, cuentas.join('\n'));
 
-    // --- NUEVO FORMATO DE ENTREGA MÚLTIPLE ---
+    // 4. Construir el mensaje recorriendo el array de cuentas extraídas
     let textoEntrega = "";
-    entregadas.forEach((cuenta, index) => {
-        textoEntrega += `📦 | **Entrega del Producto: ${CONFIG.productoNombre} - ${index + 1}/${datos.cantidad}**\n${cuenta}\n\n`;
+    entregadas.forEach((cuentaReal, index) => {
+        // Usamos cuentaReal para asegurar que imprima el contenido del archivo y NO texto externo
+        textoEntrega += `📦 | **Entrega del Producto: ${CONFIG.productoNombre} - ${index + 1}/${datos.cantidad}**\n${cuentaReal}\n\n`;
     });
 
     const embedDM = new EmbedBuilder()
@@ -197,19 +205,22 @@ async function procesarEntrega(userId, interaction) {
         .setDescription(`¡Tu compra ha sido procesada!\n\n${textoEntrega}`)
         .setColor('#00ff44');
     
-    await member.send({ embeds: [embedDM] }).catch(() => console.log(`DM cerrado.`));
+    // 5. Enviar al usuario
+    await member.send({ embeds: [embedDM] }).catch(() => {
+        console.log(`Mensajes cerrados para ${member.user.username}`);
+    });
 
+    // 6. Registro en logs
     const canalLogs = await guild.channels.fetch(CONFIG.canalLogsVentas);
     const embedLog = new EmbedBuilder()
         .setTitle('710 | Shop | Compra Aprobada')
-        .setDescription(`**Nueva venta realizada 💳**\n\n👤 **| Comprador:**\n${member} (${member.user.username})\n\n🛒 **| Producto(s):**\n\`${CONFIG.productoNombre} (x${datos.cantidad})\`\n\n💸 **| Monto:**\n> ARS$${(datos.cantidad * CONFIG.precioARS).toFixed(2)}\n\n📅 **| Fecha:**\n${new Date().toLocaleString('es-AR')}`)
-        .setImage(CONFIG.imagenVentaCompletada)
+        .setDescription(`👤 **Comprador:** ${member.user.username}\n🛒 **Cantidad:** ${datos.cantidad}\n💰 **Total:** ARS$${(datos.cantidad * CONFIG.precioARS).toFixed(2)}`)
         .setColor('#ff9900')
-        .setFooter({ text: '710 | Shop - Sistema de Ventas Automático' });
+        .setFooter({ text: '710 | Shop - Sistema Automático' });
 
     await canalLogs.send({ embeds: [embedLog] });
 
-    await interaction.reply('✅ Venta aprobada. Ticket cerrándose...');
+    await interaction.reply('✅ Venta aprobada y cuentas enviadas.');
     setTimeout(() => interaction.channel.delete(), 5000);
     carritosAtivos.delete(userId);
 }
