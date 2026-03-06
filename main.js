@@ -46,7 +46,6 @@ client.once('ready', async () => {
 
 // --- LÓGICA DE COMANDOS ---
 client.on(Events.InteractionCreate, async interaction => {
-    // Manejar comando /setup
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'setup') {
             if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -78,7 +77,6 @@ client.on(Events.InteractionCreate, async interaction => {
     const userId = interaction.user.id;
     const stockActual = fs.readFileSync(CONFIG.archivoCuentas, 'utf8').split('\n').filter(l => l.trim()).length;
 
-    // 1. Abrir Ticket
     if (interaction.customId === 'abrir_ticket') {
         if (stockActual <= 0) return interaction.reply({ content: '❌ No hay stock disponible.', ephemeral: true });
         
@@ -97,7 +95,6 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.reply({ content: `✅ Carrito abierto en ${channel}`, ephemeral: true });
     }
 
-    // Lógica de administrador para aprobar/rechazar
     if (interaction.customId.startsWith('aprobar_') || interaction.customId.startsWith('rechazar_')) {
         const [accion, targetId] = interaction.customId.split('_');
         if (accion === 'aprobar') {
@@ -110,7 +107,6 @@ client.on(Events.InteractionCreate, async interaction => {
         return;
     }
 
-    // 2. Control del Carrito (Solo en el canal del ticket)
     const datos = carritosAtivos.get(userId);
     if (!datos || interaction.channel.id !== datos.ticketId) return;
 
@@ -151,12 +147,9 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.update({ embeds: [embedPago], components: [rowPagos] });
     }
 
-    // --- SOLUCIÓN AL ERROR DE INTERACCIÓN FALLIDA ---
     if (interaction.customId === 'pago_enviado') {
-        // Confirmar al usuario inmediatamente
         await interaction.reply({ content: '🔔 **Aviso enviado.** Por favor espera a que verifiquemos tu pago.', ephemeral: false });
         
-        // Mostrar panel para que TÚ apruebes
         const rowAdmin = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`aprobar_${userId}`).setLabel('Aprobar y Entregar').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`rechazar_${userId}`).setLabel('Rechazar Pago').setStyle(ButtonStyle.Danger)
@@ -175,7 +168,6 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 });
 
-// Mantener funciones originales enviarMensajeCarrito y procesarEntrega...
 async function enviarMensajeCarrito(channel, user, cantidad, stock, edit = false, interaction = null) {
     const embed = new EmbedBuilder()
         .setTitle('Saytus | Shop | Carrito de Compras')
@@ -205,12 +197,19 @@ async function procesarEntrega(userId, interaction) {
     let cuentas = fs.readFileSync(CONFIG.archivoCuentas, 'utf8').split('\n').filter(l => l.trim());
     if (cuentas.length < datos.cantidad) return interaction.reply('❌ Error: Sin stock suficiente.');
     
+    // Extraer cantidad solicitada
     const entregadas = cuentas.splice(0, datos.cantidad);
     fs.writeFileSync(CONFIG.archivoCuentas, cuentas.join('\n'));
 
+    // --- NUEVO FORMATO DE ENTREGA MÚLTIPLE ---
+    let textoEntrega = "";
+    entregadas.forEach((cuenta, index) => {
+        textoEntrega += `📦 | **Entrega del Producto: ${CONFIG.productoNombre} - ${index + 1}/${datos.cantidad}**\n${cuenta}\n\n`;
+    });
+
     const embedDM = new EmbedBuilder()
         .setTitle('✅ Saytus | Compra Completada')
-        .setDescription(`¡Tu compra ha sido procesada!\n\n📦 **Productos:** \`${CONFIG.productoNombre} x${datos.cantidad}\`\n\n🔑 **Tus cuentas:**\n\`\`\`\n${entregadas.join('\n')}\n\`\`\``)
+        .setDescription(`¡Tu compra ha sido procesada!\n\n${textoEntrega}`)
         .setColor('#00ff44');
     
     await member.send({ embeds: [embedDM] }).catch(() => console.log(`DM cerrado.`));
