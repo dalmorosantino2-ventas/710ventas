@@ -35,7 +35,6 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 client.once('ready', async () => {
     console.clear();
     console.log(`✅ Bot Semiautomático Online: ${client.user.tag}`);
-    
     try {
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
         console.log('✅ Comando /setup registrado correctamente.');
@@ -44,7 +43,6 @@ client.once('ready', async () => {
     }
 });
 
-// --- LÓGICA DE COMANDOS ---
 client.on(Events.InteractionCreate, async interaction => {
     if (interaction.isChatInputCommand()) {
         if (interaction.commandName === 'setup') {
@@ -67,7 +65,6 @@ client.on(Events.InteractionCreate, async interaction => {
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId('abrir_ticket').setLabel('Comprar').setStyle(ButtonStyle.Success).setEmoji('🛒')
             );
-
             await interaction.reply({ embeds: [embed], components: [row] });
         }
     }
@@ -114,7 +111,6 @@ client.on(Events.InteractionCreate, async interaction => {
         let cant = datos.cantidad;
         if (interaction.customId === 'sumar' && cant < stockActual) cant++;
         if (interaction.customId === 'restar' && cant > 1) cant--;
-        
         datos.cantidad = cant;
         carritosAtivos.set(userId, datos);
         await enviarMensajeCarrito(interaction.channel, interaction.user, cant, stockActual, true, interaction);
@@ -123,7 +119,6 @@ client.on(Events.InteractionCreate, async interaction => {
     if (interaction.customId === 'ir_al_pago') {
         const totalARS = (datos.cantidad * CONFIG.precioARS).toFixed(2);
         const totalUSD = (datos.cantidad * CONFIG.precioUSD).toFixed(2);
-
         const embedPago = new EmbedBuilder()
             .setTitle('710 | Shop | Información de Pago')
             .setDescription(`🌍 **Producto:** ${CONFIG.productoNombre} x${datos.cantidad}\n` +
@@ -138,27 +133,18 @@ client.on(Events.InteractionCreate, async interaction => {
             .setFooter({ text: 'Verificamos los pagos al instante.' });
 
         const rowPagos = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setCustomId('pago_enviado')
-                .setLabel('✅ Ya envié el comprobante')
-                .setStyle(ButtonStyle.Success)
+            new ButtonBuilder().setCustomId('pago_enviado').setLabel('✅ Ya envié el comprobante').setStyle(ButtonStyle.Success)
         );
-
         await interaction.update({ embeds: [embedPago], components: [rowPagos] });
     }
 
     if (interaction.customId === 'pago_enviado') {
         await interaction.reply({ content: '🔔 **Aviso enviado.** Por favor espera a que verifiquemos tu pago.', ephemeral: false });
-        
         const rowAdmin = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId(`aprobar_${userId}`).setLabel('Aprobar y Entregar').setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`rechazar_${userId}`).setLabel('Rechazar Pago').setStyle(ButtonStyle.Danger)
         );
-
-        await interaction.channel.send({ 
-            content: `🛠️ **Panel Admin:** Verifica el dinero de **${interaction.user.username}** antes de aprobar.`, 
-            components: [rowAdmin] 
-        });
+        await interaction.channel.send({ content: `🛠️ **Panel Admin:** Verifica el dinero de **${interaction.user.username}** antes de aprobar.`, components: [rowAdmin] });
     }
 
     if (interaction.customId === 'cancelar') {
@@ -170,7 +156,7 @@ client.on(Events.InteractionCreate, async interaction => {
 
 async function enviarMensajeCarrito(channel, user, cantidad, stock, edit = false, interaction = null) {
     const embed = new EmbedBuilder()
-        .setTitle('Saytus | Shop | Carrito de Compras')
+        .setTitle('710 | Shop | Carrito de Compras')
         .setDescription(`👋 ¡Bienvenido ${user.username}!\n📦 **Producto:** \`${CONFIG.productoNombre}\`\n🔢 **Cantidad:** \`${cantidad}\`\n🛒 **Stock disponible:** ${stock}`)
         .setColor('#2b2d31');
 
@@ -178,17 +164,16 @@ async function enviarMensajeCarrito(channel, user, cantidad, stock, edit = false
         new ButtonBuilder().setCustomId('ir_al_pago').setLabel('Aceptar y Continuar').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId('cancelar').setLabel('Cancelar Compra').setStyle(ButtonStyle.Danger)
     );
-
     const row2 = new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId('sumar').setLabel('+').setStyle(ButtonStyle.Secondary),
         new ButtonBuilder().setCustomId('restar').setLabel('-').setStyle(ButtonStyle.Secondary)
     );
-
     const data = { embeds: [embed], components: [row1, row2] };
     if (edit) await interaction.update(data);
     else await channel.send({ content: `${user}`, ...data });
 }
 
+// --- FUNCIÓN SOLICITADA CORREGIDA ---
 async function procesarEntrega(userId, interaction) {
     const datos = carritosAtivos.get(userId);
     const guild = interaction.guild;
@@ -208,7 +193,7 @@ async function procesarEntrega(userId, interaction) {
     });
 
     const embedDM = new EmbedBuilder()
-        .setTitle('✅ Saytus | Compra Completada')
+        .setTitle('✅ 710 | Compra Completada')
         .setDescription(`¡Tu compra ha sido procesada!\n\n${textoEntrega}`)
         .setColor('#00ff44');
     
@@ -216,11 +201,11 @@ async function procesarEntrega(userId, interaction) {
 
     const canalLogs = await guild.channels.fetch(CONFIG.canalLogsVentas);
     const embedLog = new EmbedBuilder()
-        .setTitle('Saytus | Shop | Compra Aprobada')
+        .setTitle('710 | Shop | Compra Aprobada')
         .setDescription(`**Nueva venta realizada 💳**\n\n👤 **| Comprador:**\n${member} (${member.user.username})\n\n🛒 **| Producto(s):**\n\`${CONFIG.productoNombre} (x${datos.cantidad})\`\n\n💸 **| Monto:**\n> ARS$${(datos.cantidad * CONFIG.precioARS).toFixed(2)}\n\n📅 **| Fecha:**\n${new Date().toLocaleString('es-AR')}`)
         .setImage(CONFIG.imagenVentaCompletada)
         .setColor('#ff9900')
-        .setFooter({ text: 'Saytus | Shop - Sistema de Ventas Automático' });
+        .setFooter({ text: '710 | Shop - Sistema de Ventas Automático' });
 
     await canalLogs.send({ embeds: [embedLog] });
 
