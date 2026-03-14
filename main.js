@@ -1,154 +1,92 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, ChannelType, PermissionFlagsBits, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes } = require("discord.js");
 const fs = require('fs');
 
-const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+const client = new Client({ 
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] 
 });
 
-// --- CONFIGURACIÓN ---
-const CONFIG = {
-    productoNombre: 'Steam Account',
-    precioARS: 30.00,
-    precioUSD: 0.50,
-    alias: '710shop', 
-    nombreTitular: 'Santino Dal Moro', 
-    paypalEmail: 'la710storeshop@gmail.com',
-    linkMP: 'https://link.mercadopago.com.ar/710shop',
-    categoriaTickets: '1477028669166846014',
-    canalLogsVentas: '1469619944676135033',
-    canalPanelVenta: 'TU_ID_DE_CANAL_DE_VENTA', // DEBES PONER EL ID DEL CANAL DONDE ESTÁ EL PANEL
-    imagenProducto: 'https://cdn.discordapp.com/attachments/1474642509849165824/1474642978550054992/WhatsApp_Image_2026-02-21_at_2.20.18_AM.jpeg',
-    archivoCuentas: './accounts.txt'
-};
+// --- CONFIGURACIÓN DE IDS ---
+const CANAL_LOGS_ID = "1482226695397441668"; // Cambia esto por el ID de tu canal de logs
+const ROL_PERMITIDO_ID = "1482226736899952660"; // El rol que me pasaste
 
-const carritosAtivos = new Map();
-let panelMessageId = null; // Para rastrear el mensaje del panel y actualizarlo
+// --- REGISTRO DEL COMANDO /gensteam ---
+const commands = [
+    new SlashCommandBuilder()
+        .setName('gensteam')
+        .setDescription('Genera cuentas de Steam desde el archivo .txt')
+        .addIntegerOption(option => 
+            option.setName('cantidad')
+                .setDescription('Número de cuentas a generar')
+                .setRequired(true))
+].map(command => command.toJSON());
 
-// --- FUNCIÓN PARA OBTENER STOCK ACTUAL ---
-function obtenerStock() {
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+
+(async () => {
     try {
-        const contenido = fs.readFileSync(CONFIG.archivoCuentas, 'utf8');
-        return contenido.split('\n').map(l => l.trim()).filter(l => l.length > 0).length;
-    } catch (e) {
-        return 0;
-    }
-}
+        console.log('Cargando comandos /...');
+        // Pon el ID de tu bot aquí abajo
+        await rest.put(Routes.applicationCommands("1479205943655923976"), { body: commands });
+    } catch (error) { console.error(error); }
+})();
 
-// --- FUNCIÓN PARA ACTUALIZAR EL PANEL EN TIEMPO REAL ---
-async function actualizarPanelStock(guild) {
-    if (!CONFIG.canalPanelVenta) return;
-    
-    const canal = await guild.channels.fetch(CONFIG.canalPanelVenta).catch(() => null);
-    if (!canal) return;
+// --- LÓGICA DEL COMANDO ---
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isChatInputCommand()) return;
 
-    const stock = obtenerStock();
-    const embed = new EmbedBuilder()
-        .setTitle(`${CONFIG.productoNombre} | Producto`)
-        .setDescription('🇪🇸 **- Cuenta de Steam FULL ACCES +60 Días.**\n\n> Full Access\n> (MAIL:CONTRASEÑA).')
-        .addFields(
-            { name: '💸 | **Precio: ARS**', value: `$${CONFIG.precioARS.toFixed(2)}`, inline: true },
-            { name: '💰 | **Price: USD**', value: `$${CONFIG.precioUSD.toFixed(2)}`, inline: true },
-            { name: '📦 | **Stock:**', value: `${stock}`, inline: true }
-        )
-        .setImage(CONFIG.imagenProducto)
-        .setColor('#00ff77');
-
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('abrir_ticket').setLabel('Comprar').setStyle(ButtonStyle.Success).setEmoji('🛒')
-    );
-
-    // Intentar buscar el último mensaje del bot para editarlo o enviar uno nuevo
-    const mensajes = await canal.messages.fetch({ limit: 10 });
-    const botMsg = mensajes.find(m => m.author.id === client.user.id && m.embeds.length > 0);
-
-    if (botMsg) {
-        await botMsg.edit({ embeds: [embed], components: [row] });
-    } else {
-        await canal.send({ embeds: [embed], components: [row] });
-    }
-}
-
-client.on(Events.InteractionCreate, async interaction => {
-    // Comando Setup
-    if (interaction.isChatInputCommand() && interaction.commandName === 'setup') {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return;
-        CONFIG.canalPanelVenta = interaction.channelId; // Guarda el canal actual como el del panel
-        await actualizarPanelStock(interaction.guild);
-        return interaction.reply({ content: '✅ Panel configurado y stock sincronizado.', ephemeral: true });
-    }
-
-    if (!interaction.isButton()) return;
-    const userId = interaction.user.id;
-    const stockActual = obtenerStock();
-
-    // Abrir Ticket
-    if (interaction.customId === 'abrir_ticket') {
-        if (stockActual <= 0) return interaction.reply({ content: '❌ No hay stock disponible.', ephemeral: true });
+    if (interaction.commandName === 'gensteam') {
         
-        const channel = await interaction.guild.channels.create({
-            name: `🛒-compra-${interaction.user.username}`,
-            type: ChannelType.GuildText,
-            parent: CONFIG.categoriaTickets,
-            permissionOverwrites: [
-                { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                { id: userId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-            ],
-        });
+        // 1. Verificar si tiene el ROL específico
+        if (!interaction.member.roles.cache.has(ROL_PERMITIDO_ID)) {
+            return interaction.reply({ 
+                content: "❌ No tienes el rol necesario para generar cuentas.", 
+                ephemeral: true 
+            });
+        }
 
-        carritosAtivos.set(userId, { cantidad: 1, ticketId: channel.id });
-        await enviarMensajeCarrito(channel, interaction.user, 1, stockActual);
-        await interaction.reply({ content: `✅ Carrito abierto en ${channel}`, ephemeral: true });
-    }
+        const cantidad = interaction.options.getInteger('cantidad');
+        const logsChannel = client.channels.cache.get(CANAL_LOGS_ID);
 
-    // Aprobación (Aquí es donde baja el stock en tiempo real)
-    if (interaction.customId.startsWith('aprobar_')) {
-        const targetId = interaction.customId.split('_')[1];
-        await procesarEntrega(targetId, interaction);
-        // ACTUALIZACIÓN EN TIEMPO REAL: Después de entregar, actualiza el panel principal
-        await actualizarPanelStock(interaction.guild); 
+        // 2. Leer el archivo txt
+        if (!fs.existsSync('cuentas.txt')) {
+            return interaction.reply({ content: "❌ El archivo cuentas.txt no existe.", ephemeral: true });
+        }
+
+        let data = fs.readFileSync('cuentas.txt', 'utf8').split('\n').filter(line => line.trim() !== '');
+
+        if (data.length < cantidad) {
+            return interaction.reply({ content: `❌ No hay suficientes cuentas en el stock. Quedan: ${data.length}`, ephemeral: true });
+        }
+
+        // 3. Extraer cuentas y actualizar archivo
+        const cuentasGeneradas = data.splice(0, cantidad);
+        fs.writeFileSync('cuentas.txt', data.join('\n'), 'utf8');
+
+        // 4. Enviar al usuario (Solo él lo ve)
+        const embedUsuario = new EmbedBuilder()
+            .setTitle("🎮 Cuentas Generadas")
+            .setDescription(`Has recibido **${cantidad}** cuenta(s):\n\`\`\`${cuentasGeneradas.join('\n')}\`\`\``)
+            .setColor("#00ff00")
+            .setTimestamp();
+
+        await interaction.reply({ embeds: [embedUsuario], ephemeral: true });
+
+        // 5. Enviar Log al canal de logs
+        if (logsChannel) {
+            const embedLog = new EmbedBuilder()
+                .setTitle("⚠️ Alerta de Generación")
+                .setColor("#ffaa00")
+                .addFields(
+                    { name: "👤 Usuario", value: `${interaction.user.tag} (${interaction.user.id})`, inline: false },
+                    { name: "🔢 Cantidad", value: `${cantidad}`, inline: true },
+                    { name: "📉 Stock Restante", value: `${data.length}`, inline: true }
+                )
+                .setTimestamp();
+
+            logsChannel.send({ embeds: [embedLog] });
+        }
     }
-    
-    // ... (Mantener resto de botones: sumar, restar, ir_al_pago, pago_enviado, cancelar)
 });
 
-async function procesarEntrega(userId, interaction) {
-    const datos = carritosAtivos.get(userId);
-    const guild = interaction.guild;
-    const member = await guild.members.fetch(userId);
-
-    // 1. Leer stock real del archivo
-    let contenido = fs.readFileSync(CONFIG.archivoCuentas, 'utf8');
-    let cuentas = contenido.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-    if (cuentas.length < datos.cantidad) return interaction.reply('❌ Error: Stock insuficiente.');
-    
-    // 2. Extraer las cuentas del archivo (ejemplo: si compró 2, saca 2)
-    const entregadas = cuentas.splice(0, datos.cantidad);
-    fs.writeFileSync(CONFIG.archivoCuentas, cuentas.join('\n'));
-
-    // 3. Construir el mensaje con el formato de bloques numerados
-    let textoEntrega = "";
-    entregadas.forEach((cuentaReal, index) => {
-        // Cada cuenta se imprime en su propia línea con su número
-        textoEntrega += `📦 | **Entrega del Producto: ${CONFIG.productoNombre} - ${index + 1}/${datos.cantidad}**\n${cuentaReal}\n\n`;
-    });
-
-    const embedDM = new EmbedBuilder()
-        .setTitle('✅ 710 | Compra Completada')
-        .setDescription(`¡Tu compra ha sido procesada!\n\n${textoEntrega}`)
-        .setColor('#00ff44');
-    
-    // 4. Enviar al privado del usuario
-    await member.send({ embeds: [embedDM] }).catch(() => console.log("MDs cerrados"));
-
-    // 5. Actualizar stock en el panel principal en tiempo real
-    await actualizarPanelStock(interaction.guild); 
-
-    await interaction.reply('✅ Venta aprobada y cuentas enviadas.');
-    setTimeout(() => interaction.channel.delete(), 5000);
-    carritosAtivos.delete(userId);
-}
-
-// ... (Resto de funciones auxiliares)
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.TOKEN);
